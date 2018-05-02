@@ -7,138 +7,46 @@
 #   feature.
 #
 # - NEED header parsing, and http response handling (_htHead, http)
-#
-# - DO NOT NEED session or cookie related stuff. server is "stateless" and uses
-#   JSON Web Tokens (JWT's). NOTE - verdict is still out on whether this is a
-#   good idea, or if I'm just riding the hype train. Stay tuned.
 
 # POST requests expect a single JSON.stringify'd string in the body of the
 # request.
-
+#
 # A typical call from javascript would be something like,
 #
-#  fetch("some-url/!some-picolisp-function",
-#     {
-#        method: "POST",
-#        body: JSON.stringify({
-#           token: "base64.encoded.jwt",
-#           name: "Erik",
-#           password: "erikiscool"
-#        })
-#     }
+#  fetch("some-url/!some-picolisp-function", {
+#     method: "POST",
+#     body: JSON.stringify({
+#        token: "base64.encoded.jwt",
+#        name: "erik",
+#        password: "secretpassword"
+#     })
+#  }
 #  .then( ... do things with the response ... );
 #
-# On the lisp side, this string will be available for further processing in
-# *Post. Typically, an api function (e.g. '!do-something') will decode the json
-# sting into an 'assoc' list and continue with its business.
+# On the lisp side, 'http' will use json~decode to turn this string into an
+# 'assoc' list. This list will be available for further processing in the 
+# global variable '*Posted'. Use the 'posted' helper to get values from *Posted.
 #
-#  (let [Json  (json~decode *Post)
-#        Token (getJson "token" Json)
-#        Name  (getJson "name" Json)
+#  (let [Name  (posted "name")
+#        Pass  (posted "password")
 #        ... ]
 #     ( ... do stuff ... ) )
 
 
-# JWT's should be sent in the "Authorization" header:
-#
-#    Authorization: Bearer <token>
-#
-# The JWT will be available for further processing in '*JWT' after the headers
-# have been parsed (in _htHead).
-#
-# NOTE - I'm not currently using the Authorization header for JWT's, because
-# browsers (when using fetch, at least) send an OPTIONS request before the
-# actual request when you mess with http headers... or something like that. I
-# don't entirely understand it, nor do I have the desire to at this point. And
-# the PicoLisp server only handles GET and POST at this point. It's much easier
-# to just throw the token in with the POST data. See above.
+
+# consider including "https://github.com/aw/picolisp-json" in this file?
 
 
 # CHANGES BELOW
 
-# *HPorts *Home *Gate *Host *Port *Port1 *Port% *Http1 *Chunked
-# *Sock *Agent *ContL *ContLen *MPartLim *MPartEnd "*HtSet"
-# *Post *Url *Timeout *SesAdr *SesId *ConId
-# *Referer *Cookies "*Cookies"
-
-# (default
-#    *HPorts 0
-#    *Timeout (* 300 1000) )
+# *HPorts *Home *Gate *Host *Port *Port1 *Http1 *Chunked
+# *Sock *Agent *ContL *ContLen "*HtSet"
+# *Posted *Url
+# *Referer
 
 (mapc allow '(*Adr *Gate *Cipher *Host *ContL))
 
 (zero *Http1)
-
-#{ DON'T NEED
-(de *Mimes
-   (`(chop "html") "text/html; charset=utf-8")
-   (`(chop "svg") "image/svg+xml; charset=utf-8")
-   (`(chop "au") "audio/basic" 3600)
-   (`(chop "wav") "audio/x-wav" 3600)
-   (`(chop "mp3") "audio/x-mpeg" 3600)
-   (`(chop "gif") "image/gif" 3600)
-   (`(chop "tif") "image/tiff" 3600)
-   (`(chop "tiff") "image/tiff" 3600)
-   (`(chop "bmp") "image/bmp" 86400)
-   (`(chop "png") "image/png" 86400)
-   (`(chop "jpg") "image/jpeg" 3600)
-   (`(chop "jpeg") "image/jpeg" 3600)
-   (`(chop "txt") "text/octet-stream" 1 T)
-   (`(chop "csv") "text/csv; charset=utf-8" 1 T)
-   (`(chop "css") "text/css" 86400)
-   (`(chop "js") "application/x-javascript" 86400)
-   (`(chop "ps") "application/postscript" 1)
-   (`(chop "pdf") "application/pdf" 1)
-   (`(chop "zip") "application/zip" 1)
-   (`(chop "jar") "application/java-archive" 86400) )
-
-(de mime (S . @)
-   (let L (chop S)
-      (if (assoc L *Mimes)
-         (con @ (rest))
-         (push '*Mimes (cons L (rest))) ) ) )
-
-(de mimetype (File Typ)
-   (in (list 'file "-b" (if Typ "--mime-type" "--mime") File)
-      (line T) ) )
-}#
-
-
-### DON'T NEED??? MIGHT AS WELL KEEP...
-### HTTP-Client ###
-(de client (Host Port How . Prg)
-   (let? Sock (connect Host Port)
-      (prog1
-         (out Sock
-            (if (atom How)
-               (prinl "GET /" How " HTTP/1.0^M")
-               (prinl "POST /" (car How) " HTTP/1.0^M")
-               (prinl "Content-Length: " (size (cdr How)) "^M") )
-            (prinl "User-Agent: PicoLisp^M")
-            (prinl "Host: " Host "^M")
-            (prinl "Accept-Charset: utf-8^M")
-            (prinl "^M")
-            (and (pair How) (prin (cdr @)))
-            (flush)
-            (in Sock (run Prg 1)) )
-         (close Sock) ) ) )
-
-# Local Password
-(de pw (N)
-   (if N
-      (out ".pw" (prinl (in "/dev/urandom" (rd N))))
-      (in ".pw" (line T)) ) )
-
-# PicoLisp Shell
-(de psh (Pw Tty)
-   (nond
-      (Pw (println *Port) (bye))
-      ((nand (= Pw (pw)) (ctty Tty))
-         (off *Run)
-         (println *Pid)
-         (load (if *Dbg "@lib/too.l" "@dbg.l"))
-         (off *Err)
-         (quit) ) ) )
 
 ### HTTP-Server ###
 (de -server ()
@@ -171,21 +79,6 @@
             ((=0 (dec X)) (run (cddr X)) (bye)) ) )
       (forked) ) )
 
-#{DON'T NEED
-(de baseHRef (Port . @)
-   (pass pack
-      (or *Gate "http") "://" *Host
-      (if *Gate "/" ":")
-      (or Port (if *SesId *Port *Port1))
-      "/" ) )
-}#
-
-(de https @
-   (pass pack "https://" *Host "/" *Port "/" *SesId) )
-
-(de ext.html (Sym)
-   (pack (ht:Fmt Sym) ".html") )
-
 (de disallowed ()
    (and
       *Allow
@@ -200,54 +93,25 @@
    (unless (= X "favicon.ico")
       (msg X " [" *Adr "] not allowed") ) )
 
-#{ DON'T NEED
-# Application startup
-(de app ()
-   (unless *SesId
-      (setq
-         *Port% (not *Gate)
-         *SesAdr *Adr
-         *SesId (pack (in "/dev/urandom" (rd 7)) "~")
-         *Sock (port *HPorts '*Port) )
-      (timeout *Timeout) ) )
-
-# Set a cookie
-(de cookie @
-   (if (assoc (next) "*Cookies")
-      (con @ (rest))
-      (push '"*Cookies" (cons (arg) (rest))) ) )
-}#
-
 # Handle HTTP-Transaction
 (de http (*HtSock)
-   (use (*Post *JWT U L @X)
-      (off *Post *JWT *ContL *ContLen *Cookies "*Cookies" "*HtSet")
+   (use (*Posted U L @X)
+      (off *Posted *ContL *ContLen "*HtSet")
       (catch 'http
          (in *HtSock
             (case (till " " T)
                ("GET" (_htHead))
                ("POST"
-                  (on *Post)
-                  (off *MPartLim *MPartEnd)
+                  (on *Posted)
                   (_htHead)
-                  (cond
-                     (*MPartLim (_htMultipart))
-                     ((=0 *ContLen))
-                     ### CHANGES
-                     ((cond (*ContL (line)) (*ContLen (ht:Read @)))
-                        (for L (split @ '&)
-                           (when (setq L (split L "="))
-                              (setq *Post (ht:Pack (car L)) ) ) ) )
-                     ### END CHANGES
-                     (T (throw 'http)) ) )
+                  (if *ContLen
+                     (setq *Posted (json~decode (ht:Pack (ht:Read @))))
+                     (throw 'http) ) )
                (T
-                  (and @ (out *HtSock (httpStat 400 "Bad Request")))
+                  (and @ (out *HtSock (badRequest)))
                   (task (close *HtSock))
                   (off *HtSock)
                   (throw 'http) ) )
-            # never gonna happen
-            # (if (or (<> *ConId *SesId) (and *SesAdr (<> @ *Adr)))
-            #    (prog (task (close *HtSock)) (off *HtSock))
             (prog
                (setq
                   L (split U "?")
@@ -269,19 +133,7 @@
                         (notAllowed *Url)
                         (http404) )
                      ((= "!" (car U))
-                        # (and *SesId (timeout *Timeout))
                         (apply (val (intern (ht:Pack (cdr U) T))) L) )
-                     #{ DON'T NEED
-                     ((tail '("." "l") U)
-                        (and *SesId (timeout *Timeout))
-                        (apply script L *Url) )
-                     ((=T (car (info *Url)))
-                        (if (info (setq *Url (pack *Url "/default")))
-                           (apply script L *Url)
-                           (http404) ) )
-                     ((assoc (stem U ".") *Mimes)
-                        (apply httpEcho (cdr @) *Url) )
-                     }#
                      (T (httpEcho *Url "application/octet-stream" 1 T)) ) ) ) ) )
       (and *HtSock (=0 *Http1) (task (close *HtSock))) ) )
 
@@ -298,27 +150,10 @@
       (off *HtSock)
       (throw 'http) )
    (setq *Chunked (gt0 *Http1))
-#{ DON'T NEED
-   (if (index "~" U)
-      (setq
-         *ConId (head @ U)
-         U (cdr (nth U @))
-         *ConId (pack (if (member "/" *ConId) (cdr @) *ConId)) )
-      (off *ConId) )
-}#
    (while
       (case (lowc (till " ^M^J" T))
          ("host:" (setq *Host (cdr (line))))
          ("referer:" (setq *Referer (cdr (line))))
-#{ DON'T NEED
-         ("cookie:"
-            (setq *Cookies
-               (mapcar
-                  '((L)
-                     (setq L (split L "="))
-                     (cons (htArg (clip (car L))) (htArg (cadr L))) )
-                  (split (cdr (line)) ";") ) ) )
-}#
          ("user-agent:" (setq *Agent (cdr (line))))
          ("content-length:" (setq *ContLen (format (cdr (line)))))
          ("content-type:"
@@ -327,7 +162,6 @@
                   *MPartLim (append '(- -) (cdr (line)))
                   *MPartEnd (append *MPartLim '(- -)) )
                (line) ) )
-         ("authorization:" (setq *JWT (cdr (line))))
          ("x-pil:"
             (char)
             (when (till "=")
@@ -336,44 +170,6 @@
          (T (if (eol) (char) (line T))) ) )
    (unless *Gate
       (and (member ":" *Host) (con (prior @ *Host))) ) )
-
-# rfc1867 multipart/form-data
-(de _htMultipart ()
-   (use Var
-      (let L (line)
-         (while (= *MPartLim L)
-            (unless (= "content-disposition: form-data; name=" (lowc (till "\"" T)))
-               (line)
-               (throw 'http) )
-            (char)
-            (setq Var (till "\""))
-            (char)
-            (nond
-               ((line)
-                  (while (line))
-                  (_htSet Var
-                     (pack
-                        (make
-                           (until
-                              (or
-                                 (= *MPartLim (setq L (line)))
-                                 (= *MPartEnd L) )
-                              (when (eof)
-                                 (throw 'http) )
-                              (when (made)
-                                 (link "^J") )
-                              (link (trim L)) ) ) ) ) )
-               ((head '`(chop "; filename=") (setq L @))
-                  (while (line)) )
-               (NIL
-                  (while (line))
-                  (setq L (cdr (rot (nth L 13))))
-                  (if (_htSet Var (pack (stem L "/" "\\")))
-                     (let F (tmp @)
-                        (unless (out F (echo (pack "^M^J" *MPartLim)))
-                           (call "rm" "-f" F) ) )
-                     (out "/dev/null" (echo (pack "^M^J" *MPartLim))) )
-                  (setq L (if (= "-" (car (line))) *MPartEnd *MPartLim)) ) ) ) ) ) )
 
 (de _htSet (L Val)
    (let "Var" (intern (ht:Pack (car (setq L (split L ":"))) T))
@@ -430,21 +226,6 @@
          (if Att "attachment" "inline")
          "; filename=\"" File "\"^M" ) ) )
 
-#{ DON'T NEED
-(de httpCookies ()
-   (mapc
-      '((L)
-         (prin "Set-Cookie: "
-            (ht:Fmt (++ L)) "=" (ht:Fmt (++ L))
-            "; path=" (or (++ L) "/") )
-         (and (++ L) (prin "; expires=" @))
-         (and (++ L) (prin "; domain=" @))
-         (and (++ L) (prin "; secure"))
-         (and (++ L) (prin "; HttpOnly"))
-         (prinl) )
-      "*Cookies" ) )
-}#
-
 (de respond (S)
    (http1 "application/octet-stream" 0)
    (prinl "Content-Length: " (size S) "^M^J^M")
@@ -453,7 +234,6 @@
 (de httpHead (Typ Upd File Att)
    (http1 Typ Upd File Att)
    (and *Chunked (prinl "Transfer-Encoding: chunked^M"))
-   (httpCookies)
    (prinl "^M") )
 
 (de httpDate (Dat Tim)
@@ -478,27 +258,39 @@
          (prinl "^M")
          (in File (echo)) ) ) )
 
-#{ DON'T NEED
-(de srcUrl (Url)
-   (if (or (pre? "http:" Url) (pre? "https:" Url))
-      Url
-      (baseHRef *Port1 Url) ) )
-}#
+(de *Mimes
+   (`(chop "html") "text/html; charset=utf-8")
+   (`(chop "svg") "image/svg+xml; charset=utf-8")
+   (`(chop "au") "audio/basic" 3600)
+   (`(chop "wav") "audio/x-wav" 3600)
+   (`(chop "mp3") "audio/x-mpeg" 3600)
+   (`(chop "gif") "image/gif" 3600)
+   (`(chop "tif") "image/tiff" 3600)
+   (`(chop "tiff") "image/tiff" 3600)
+   (`(chop "bmp") "image/bmp" 86400)
+   (`(chop "png") "image/png" 86400)
+   (`(chop "jpg") "image/jpeg" 3600)
+   (`(chop "jpeg") "image/jpeg" 3600)
+   (`(chop "txt") "text/octet-stream" 1 T)
+   (`(chop "csv") "text/csv; charset=utf-8" 1 T)
+   (`(chop "css") "text/css" 86400)
+   (`(chop "js") "application/x-javascript" 86400)
+   (`(chop "ps") "application/postscript" 1)
+   (`(chop "pdf") "application/pdf" 1)
+   (`(chop "zip") "application/zip" 1)
+   (`(chop "jar") "application/java-archive" 86400) )
 
-#{ DON'T NEED
-(de sesId (Url)
-   (if
-      (or
-         (pre? "http:" Url)
-         (pre? "https:" Url)
-         (pre? "mailto:" Url)
-         (pre? "javascript:" Url)
-         (pre? "tel:" Url) )
-      Url
-      (pack *SesId Url) ) )
-}#
+(de mime (S . @)
+   (let L (chop S)
+      (if (assoc L *Mimes)
+         (con @ (rest))
+         (push '*Mimes (cons L (rest))) ) ) )
 
-(de httpStat (N X . @)
+(de mimetype (File Typ)
+   (in (list 'file "-b" (if Typ "--mime-type" "--mime") File)
+      (line T) ) )
+
+(httpStat (N X . @)
    (let B (fin X)
       (if (pair X)
          (setq X (car X))
@@ -516,18 +308,55 @@
       (prinl "<BODY>" B "</BODY>")
       (prinl "</HTML>") ) )
 
+#simple HTTP responses
 (de noContent ()
    (prinl "HTTP/1.0 204 No Content^M")
    (prinl "^M") )
 
-(de redirect @
-   (httpStat 303 "See Other" (pass pack "Location: ")) )
+(de badRequest ()
+   (prinl "HTTP/1.0 400 Bad Request^M")
+   (prinl "^M") )
 
 (de forbidden ()
-   (httpStat 403 "No Permission")
-   (throw 'http) )
+   (prinl "HTTP/1.0 403 Forbidden^M")
+   (prinl "^M") )
 
 (de http404 ()
    (httpStat 404 "Not Found") )
+
+# json utils - requires "https://github.com/aw/picolisp-json"
+(de respondJson (Lst)
+   (let Json (json~encode Lst)
+      (http1 "application/json" 0)
+      (prinl "Access-Control-Allow-Origin: *^M")
+      (prinl "Content-Length: " (size Json) "^M^J^M")
+      (prin Json) ) )
+
+# get val from *Posted (see above)
+#
+# USAGE - call in API fn (e.g. "!doSomething")
+#
+#  (de doSomething ()
+#     (let Token (posted "token")
+#        (doSomethingWithToken)
+#        ... ) )
+#
+(de posted (Key)
+   (cdr (assoc Key *Posted)) )
+
+# get json val from list
+(de getJson (Key Lst)
+   (cdr (assoc Key Lst)) )
+
+# by this convention, server-side errors are returned as,
+# 
+#    { error: "Something went wrong" }
+#
+# to be displayed on the client.
+(de respondJsonError (Str)
+   (respondJson
+      (list
+         (cons "error"
+            Str ) ) ) )
 
 # vi:et:ts=3:sw=3
