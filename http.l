@@ -290,7 +290,7 @@
    (in (list 'file "-b" (if Typ "--mime-type" "--mime") File)
       (line T) ) )
 
-(httpStat (N X . @)
+(de httpStat (N X . @)
    (let B (fin X)
       (if (pair X)
          (setq X (car X))
@@ -311,14 +311,17 @@
 #simple HTTP responses
 (de noContent ()
    (prinl "HTTP/1.0 204 No Content^M")
+   (prinl "Access-Control-Allow-Origin: *^M")
    (prinl "^M") )
 
 (de badRequest ()
    (prinl "HTTP/1.0 400 Bad Request^M")
+   (prinl "Access-Control-Allow-Origin: *^M")
    (prinl "^M") )
 
 (de forbidden ()
    (prinl "HTTP/1.0 403 Forbidden^M")
+   (prinl "Access-Control-Allow-Origin: *^M")
    (prinl "^M") )
 
 (de http404 ()
