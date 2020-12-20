@@ -350,7 +350,7 @@
 (de getJson (Key Lst)
    (cdr (assoc Key Lst)) )
 
-# by this convention, server-side errors are returned as,
+# by this convention, server-side errors are returned as:
 # 
 #    { error: "Something went wrong" }
 #
