@@ -300,7 +300,6 @@
       (while (args)
          (prinl (next) "^M") )
       (prinl "Content-Type: text/html^M")
-      (httpCookies)
       (prinl "Content-Length: " (+ 59 (length N) (length X) (length B)) "^M")
       (prinl "^M")
       (prinl "<HTML>")
